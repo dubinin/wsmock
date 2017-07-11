@@ -1,0 +1,12 @@
+{
+  "login": "",
+  "password": "",
+  "handlers": [{
+      "path": "/test",
+      "headers": {
+        "Content-type": "application/xml; charset=utf-8"
+      },
+      "data": "<message>TEST</message>"
+    }
+  ]
+}
