@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 	"fmt"
+	"strconv"
+	"path"
+	"os"
 )
 
 type Settings struct {
@@ -25,6 +28,7 @@ type Handler struct {
 type WSMockHandler struct{}
 
 const settingsFile = "settings.json"
+const responseFolder = "response"
 
 var config Settings
 var HTML = `<html>
@@ -75,17 +79,23 @@ func (h *WSMockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Try to find handler by path
 		for _, handler := range config.Handlers {
 			if strings.HasPrefix(r.URL.Path, handler.Path) {
-				r.Body.Read(body)
-				// Request logging
-				log.Printf("Incoming message for (%s):\n%s\n",
-					r.URL.Path, body)
-				// Set headers
-				for key, value := range handler.Headers {
-					w.Header().Set(key, value)
+				body, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					log.Printf("Can't get request body: %v\n", err)
+					w.WriteHeader(http.StatusInternalServerError)
+				} else {
+					// Request logging
+					log.Printf("Incoming message for (%s):\n%s\n",
+						r.URL.Path, body)
+					WriteRequestBody(body, r.URL.Path)
+					// Set headers
+					for key, value := range handler.Headers {
+						w.Header().Set(key, value)
+					}
+					// Set body
+					w.Write([]byte(handler.Data))
+					return
 				}
-				// Set body
-				w.Write([]byte(handler.Data))
-				return
 			}
 		}
 	}
@@ -93,6 +103,7 @@ func (h *WSMockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	os.Mkdir(responseFolder, os.ModePerm)
 	data, err := ReadSettings()
 	if err != nil {
 		log.Printf("Can't open %s: %v\n", settingsFile, err)
@@ -123,4 +134,12 @@ func ReadSettings() ([]byte, error) {
 
 func WriteSettings(data []byte) error {
 	return ioutil.WriteFile(settingsFile, data, 0644)
+}
+
+func WriteRequestBody(data []byte, dir string) error {
+	if (len(data) == 0) {
+		return nil
+	}
+	return ioutil.WriteFile(path.Join(responseFolder,
+		strconv.FormatInt(time.Now().UnixNano(), 10)), data, 0644)
 }
